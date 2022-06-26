@@ -3,6 +3,11 @@ from itertools import chain
 from solcx import compile_standard, install_solc
 import json
 from web3 import Web3
+import os
+import dotenv
+
+
+dotenv.load_dotenv()
 
 with open("./SimpleStorage.sol", "r") as file:
     simple_storage_file = file.read()
@@ -37,10 +42,12 @@ abi = compile_sol["contracts"]["SimpleStorage.sol"]["SimpleStorage"]["abi"]
 print(abi)
 
 # connecting ganache
-w3 = Web3(Web3.HTTPProvider("HTTP://127.0.0.1:7545"))
-chain_id = 1337
-my_address = "0xc5e1e09B097B4732c92226e81Cd54db3583522Bc"
-privet_key = "0x8db7669992aafdee7c22bf6ea6f13c59ea8b36fddb984fb2d62c59793b717a5e"
+w3 = Web3(Web3.HTTPProvider("https://rinkeby.infura.io/v3/86b115e6f6504545ae5f280ba39298f7"))
+chain_id = 4
+my_address = "0x5B2e409171Df217f73B6D4A454B8B5cF15Da9A3d"
+private_key = os.getenv("PRIVATE_KEY")
+print(private_key)
+print("privet key")
 
 # create contract
 SimpleStorage = w3.eth.contract(abi=abi, bytecode=get_bytecode)
@@ -58,3 +65,31 @@ transaction = SimpleStorage.constructor().buildTransaction(
     }
 )
 print(transaction)
+# sign transaction
+signed_transaction = w3.eth.account.signTransaction(
+    transaction, private_key=private_key
+)
+
+# send signed transaction
+tx_hash = w3.eth.sendRawTransaction(signed_transaction.rawTransaction)
+transaction_receipt = w3.eth.waitForTransactionReceipt(tx_hash)
+print(transaction_receipt)
+
+
+# working with contract
+# get contract address
+# contract abi
+simple_storage = w3.eth.contract(address=transaction_receipt.contractAddress, abi=abi)
+store_transaction = simple_storage.functions.store(42).buildTransaction(
+    {
+        "chainId": chain_id,
+        "gasPrice": w3.eth.gas_price,
+        "from": my_address,
+        "nonce": nonce + 1,
+    }
+)
+signed_transaction_store = w3.eth.account.signTransaction(store_transaction, private_key=private_key)
+transaction_hash_store = w3.eth.sendRawTransaction(signed_transaction_store.rawTransaction)
+transaction_receipt_store = w3.eth.waitForTransactionReceipt(transaction_hash_store)
+print(simple_storage.functions.retrieve().call())
+
